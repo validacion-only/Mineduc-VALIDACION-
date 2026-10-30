@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Validación de Certificado - Ayuda Mineduc</title>
+    <!-- Librería externa para modificar el PDF en tiempo real -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -90,9 +93,9 @@
             border-color: #b2b2b2;
         }
 
-        /* Animación de carga (Círculo azul girando) */
+        /* Animación de carga */
         .captcha-spinner {
-            display: none; /* Oculto por defecto */
+            display: none;
             width: 24px;
             height: 24px;
             border: 3px solid #f3f3f3;
@@ -124,7 +127,7 @@
             margin-top: 2px;
         }
 
-        /* Contenedor Validado (Paso 2) - Color Verde Ajustado */
+        /* Contenedor Validado (Paso 2) */
         #paso2 {
             display: none;
             background-color: #dcedc8;
@@ -246,7 +249,6 @@
         <div class="captcha-box" onclick="validarCaptcha()">
             <div class="captcha-left">
                 <div class="captcha-checkbox" id="checkbox-captcha"></div>
-                <!-- El spinner de carga está oculto por defecto -->
                 <div class="captcha-spinner" id="spinner-captcha"></div>
                 <span class="captcha-label">No soy un robot</span>
             </div>
@@ -271,23 +273,19 @@
         <div class="pdf-viewer">
             <div class="pdf-icon">PDF</div>
             <div class="pdf-text">getPdf</div>
-            <!-- Se agregó la función onclick para abrir el PDF -->
-            <button class="btn-abrir" onclick="abrirPDF()">Abrir</button>
+            <button class="btn-abrir" id="btn-abrir-pdf" onclick="abrirPDFMarcado()">Abrir</button>
         </div>
         
         <div class="copy-section clearfix">
             Si no puede ver el Certificado mas arriba, pinche aqui para abrir en una nueva ventana:
-            <!-- Se agregó la función onclick para abrir el PDF también en este botón -->
-            <button class="btn-copia" onclick="abrirPDF()">📄 Ver Copia</button>
+            <button class="btn-copia" id="btn-copia-pdf" onclick="abrirPDFMarcado()">📄 Ver Copia</button>
         </div>
     </div>
 
-    <!-- BOTÓN VOLVER -->
     <div id="btn-volver-container" style="display: none;" class="clearfix">
         <button class="btn-volver">🏠 Volver al Portal</button>
     </div>
 
-    <!-- PIE DE PÁGINA -->
     <div class="footer">
         <strong>Ministerio de Educación</strong><br>
         <a href="#">Gobierno de Chile</a><br>
@@ -299,13 +297,9 @@
 
 <script>
     function validarCaptcha() {
-        // 1. Ocultar el cuadro vacío
         document.getElementById('checkbox-captcha').style.display = 'none';
-        
-        // 2. Mostrar el círculo girando de carga
         document.getElementById('spinner-captcha').style.display = 'block';
         
-        // 3. Esperar 1.2 segundos simulando la conexión y luego avanzar
         setTimeout(function() {
             document.getElementById('paso1').style.display = 'none';
             document.getElementById('paso2').style.display = 'block';
@@ -313,9 +307,62 @@
         }, 1200);
     }
 
-    // Función para abrir el PDF en una nueva pestaña
-    function abrirPDF() {
-        window.open('JacobSolar.pdf', '_blank');
+    // Nueva función que inyecta la marca de agua al vuelo antes de abrir
+    async function abrirPDFMarcado() {
+        // Cambiar botones a estado de carga
+        const btnAbrir = document.getElementById('btn-abrir-pdf');
+        const btnCopia = document.getElementById('btn-copia-pdf');
+        btnAbrir.innerText = "Procesando...";
+        btnCopia.innerText = "Procesando...";
+        
+        try {
+            // 1. Carga el archivo PDF original de tu servidor
+            const url = 'JacobSolar.pdf';
+            const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
+
+            // 2. Prepara la librería de edición de PDF
+            const { PDFDocument, rgb, degrees } = PDFLib;
+            const pdfDoc = await PDFDocument.load(existingPdfBytes);
+            const pages = pdfDoc.getPages();
+
+            // 3. Escribe el sello de agua en diagonal en todas las páginas
+            for (const page of pages) {
+                // Color gris transparente idéntico a tu foto
+                const colorTexto = rgb(0.7, 0.7, 0.7); 
+                const opacidad = 0.35;
+                const angulo = degrees(45);
+                
+                // Repetimos el texto en una cuadrícula para cubrir toda la página
+                for (let x = -2; x <= 2; x++) {
+                    for (let y = -2; y <= 3; y++) {
+                        page.drawText("COPIA NO VALIDA COMO CERTIFICADO", {
+                            x: (x * 450) + 100,
+                            y: (y * 250) + 100,
+                            size: 35,
+                            color: colorTexto,
+                            opacity: opacidad,
+                            rotate: angulo
+                        });
+                    }
+                }
+            }
+
+            // 4. Guarda el archivo con el sello aplicado y lo abre nativamente
+            const pdfBytes = await pdfDoc.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            // Abrir en nueva pestaña (usará el visor nativo de Android/Chrome)
+            window.open(blobUrl, '_blank');
+            
+        } catch (error) {
+            console.error(error);
+            alert("No se pudo cargar el PDF. Asegúrate de que este código y JacobSolar.pdf estén subidos a GitHub.");
+        } finally {
+            // Restaurar los botones
+            btnAbrir.innerText = "Abrir";
+            btnCopia.innerText = "📄 Ver Copia";
+        }
     }
 </script>
 
